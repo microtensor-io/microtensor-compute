@@ -1,20 +1,14 @@
 services:
   validator:
-    build:
-      context: ../..
-      dockerfile: validator/deploy/Dockerfile
-    image: microtensor/compute-validator:0.2.0
+    image: ghcr.io/microtensor-io/compute-validator:${VALIDATOR_IMAGE_TAG:-latest}
     restart: unless-stopped
     env_file:
       - .env
     environment:
       CV_WALLET_HOTKEY_FILE: /wallet/hotkey
       CV_STATE_DIR: /var/lib/compute-validator
-      CV_CHALLENGE_LIBRARY: /usr/lib/libmtverify.so
-      CV_AGENT_LIBRARY: /usr/lib/libmtchallenge.so
     volumes:
       - ${CV_WALLET_HOTKEY_FILE:?path to the hotkey file on this host}:/wallet/hotkey:ro
-      - ${CV_AGENT_LIBRARY_FILE:?path to the miner build libmtchallenge.so on this host}:/usr/lib/libmtchallenge.so:ro
       - validator-state:/var/lib/compute-validator
     logging:
       driver: json-file
