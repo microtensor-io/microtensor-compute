@@ -49,7 +49,7 @@ def processes():
     except OSError:
         return found
     for pid in entries[:MAX_PROCESSES]:
-        base = "/proc/%d" % pid
+        base = f"/proc/{pid}"
         comm = read(base + "/comm", 64).strip()
         if not comm:
             continue
@@ -87,7 +87,7 @@ def containers():
     except (OSError, subprocess.SubprocessError) as exc:
         return [], f"docker ps: {exc}"
     if done.returncode != 0:
-        return [], "docker ps exit %d: %s" % (done.returncode, (done.stderr or "").strip()[:200])
+        return [], f"docker ps exit {done.returncode}: {(done.stderr or '').strip()[:200]}"
     found = []
     for line in done.stdout.splitlines():
         line = line.strip()

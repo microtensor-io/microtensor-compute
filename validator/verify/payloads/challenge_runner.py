@@ -36,7 +36,7 @@ def release():
 
 def on_signal(signum, frame):
     release()
-    emit({"digest": "", "elapsed_ms": 0.0, "error": "terminated by signal %d" % signum})
+    emit({"digest": "", "elapsed_ms": 0.0, "error": f"terminated by signal {signum}"})
     os._exit(143)
 
 
@@ -168,7 +168,7 @@ def run_library(path, seed, cipher, n, rounds, benchmark_n, iterations):
     code = lib.mt_challenge_solve(seed, cipher, n, rounds, ctypes.byref(digest))
     answer["elapsed_ms"] = round((time.perf_counter() - started) * 1000.0, 3)
     if code != 0:
-        answer["error"] = "solve failed with %d: %s" % (code, last_error())
+        answer["error"] = f"solve failed with {code}: {last_error()}"
         return answer
     answer["digest"] = f"{digest.value:016x}"
     gops = ctypes.c_double(0.0)
@@ -178,7 +178,7 @@ def run_library(path, seed, cipher, n, rounds, benchmark_n, iterations):
         benchmark_n, iterations, ctypes.byref(gops), ctypes.byref(gbps), ctypes.byref(elapsed)
     )
     if code != 0:
-        answer["error"] = "benchmark failed with %d: %s" % (code, last_error())
+        answer["error"] = f"benchmark failed with {code}: {last_error()}"
         return answer
     answer["gops"] = round(gops.value, 3)
     answer["gbps"] = round(gbps.value, 3)

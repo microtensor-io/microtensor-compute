@@ -259,10 +259,10 @@ def find_nvml():
 class NvmlFailure(Exception):
     def __init__(self, code, function):
         Exception.__init__(
-            self, "{} from {}".format(NVML_NAMES.get(code, "CODE_%d" % code), function)
+            self, "{} from {}".format(NVML_NAMES.get(code, f"CODE_{code}"), function)
         )
         self.code = code
-        self.name = NVML_NAMES.get(code, "CODE_%d" % code)
+        self.name = NVML_NAMES.get(code, f"CODE_{code}")
         self.function = function
 
 
@@ -365,13 +365,13 @@ def attempt(card, field, action):
 
 
 def container_of(pid):
-    text = read("/proc/%d/cgroup" % pid, 4096)
+    text = read(f"/proc/{pid}/cgroup", 4096)
     match = CONTAINER_ID.search(text)
     return match.group(1) if match else ""
 
 
 def describe_process(pid, kind, memory_mb, instance):
-    status = read("/proc/%d/status" % pid, 2048)
+    status = read(f"/proc/{pid}/status", 2048)
     uid = -1
     for line in status.splitlines():
         if line.startswith("Uid:"):
@@ -383,13 +383,13 @@ def describe_process(pid, kind, memory_mb, instance):
         "pid": pid,
         "kind": kind,
         "memory_mb": memory_mb,
-        "comm": read("/proc/%d/comm" % pid, 64).strip(),
-        "cmdline": read("/proc/%d/cmdline" % pid, 4096).replace("\0", " ").strip()[:200],
+        "comm": read(f"/proc/{pid}/comm", 64).strip(),
+        "cmdline": read(f"/proc/{pid}/cmdline", 4096).replace("\0", " ").strip()[:200],
         "uid": uid,
         "container": container_of(pid),
         "gpu_instance": instance[0],
         "compute_instance": instance[1],
-        "alive": os.path.exists("/proc/%d" % pid),
+        "alive": os.path.exists(f"/proc/{pid}"),
     }
 
 
@@ -467,7 +467,7 @@ def scrape_gpu(nvml, index):
         nvml.check(
             "nvmlDeviceGetCudaComputeCapability", handle, ctypes.byref(major), ctypes.byref(minor)
         )
-        return "%d.%d" % (major.value, minor.value)
+        return f"{major.value}.{minor.value}"
 
     attempt(card, F_CAPABILITY, capability)
     attempt(
@@ -543,7 +543,7 @@ def scrape_gpu(nvml, index):
     def virtualization():
         mode = ctypes.c_uint(0)
         nvml.check("nvmlDeviceGetVirtualizationMode", handle, ctypes.byref(mode))
-        return VIRTUALIZATION_NAMES.get(int(mode.value), "MODE_%d" % mode.value)
+        return VIRTUALIZATION_NAMES.get(int(mode.value), f"MODE_{mode.value}")
 
     attempt(card, F_VIRTUALIZATION, virtualization)
     attempt(card, F_HOST_VGPU, lambda: nvml.uint("nvmlDeviceGetHostVgpuMode", handle))
@@ -632,7 +632,7 @@ def scrape_nvml():
                 nvml.call("nvmlSystemGetCudaDriverVersion_v2", ctypes.byref(cuda)) == 0
                 or nvml.call("nvmlSystemGetCudaDriverVersion", ctypes.byref(cuda)) == 0
             ):
-                result["cuda"] = "%d.%d" % (cuda.value // 1000, (cuda.value % 1000) // 10)
+                result["cuda"] = f"{cuda.value // 1000}.{(cuda.value % 1000) // 10}"
             count = ctypes.c_uint(0)
             code = nvml.call("nvmlDeviceGetCount_v2", ctypes.byref(count))
             if code != 0:
@@ -691,7 +691,7 @@ def block_rotational(path):
         device = os.stat(path).st_dev
     except OSError:
         return ROTATIONAL_UNKNOWN, "stat failed"
-    wanted = "%d:%d" % (os.major(device), os.minor(device))
+    wanted = f"{os.major(device)}:{os.minor(device)}"
     base = "/sys/class/block"
     try:
         names = os.listdir(base)
