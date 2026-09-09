@@ -15,7 +15,9 @@ QUERY_TIMEOUT = 30.0
 CURE_TIMEOUT = 60.0
 CURE_MARKER = "ctx open/close OK"
 
-QUERY_WEDGE = "nvidia-smi --query-gpu=uuid,utilization.gpu,memory.used --format=csv,noheader,nounits"
+QUERY_WEDGE = (
+    "nvidia-smi --query-gpu=uuid,utilization.gpu,memory.used --format=csv,noheader,nounits"
+)
 QUERY_APPS = "nvidia-smi --query-compute-apps=pid --format=csv,noheader"
 
 CURE_SNIPPET = (
@@ -60,7 +62,9 @@ def candidate_from_scrape(gpu: dict[str, Any], processes: list[Any]) -> bool:
         memory_utilisation = float(gpu.get("memory_utilization") or 0.0)
     except (TypeError, ValueError):
         return False
-    return bool(uuid) and utilisation >= UTILISATION_MIN and memory_utilisation <= MEMORY_MAX_PERCENT
+    return (
+        bool(uuid) and utilisation >= UTILISATION_MIN and memory_utilisation <= MEMORY_MAX_PERCENT
+    )
 
 
 def parse_query(stdout: str) -> list[str]:
@@ -85,7 +89,10 @@ async def query_wedged(runner: Runner) -> tuple[list[str], str]:
         runner.run(QUERY_WEDGE, timeout=QUERY_TIMEOUT),
     )
     if not apps.ok or not sample.ok:
-        return [], f"query failed: {apps.error or apps.stderr_tail(200)} {sample.error or sample.stderr_tail(200)}".strip()
+        return (
+            [],
+            f"query failed: {apps.error or apps.stderr_tail(200)} {sample.error or sample.stderr_tail(200)}".strip(),
+        )
     if apps.stdout.strip():
         return [], "compute processes present, wedge signature cannot apply"
     return parse_query(sample.stdout), ""

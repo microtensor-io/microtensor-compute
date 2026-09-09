@@ -146,7 +146,9 @@ def normalize(name: str) -> str:
 
 
 def window_for(nominal_mb: int) -> Window:
-    return Window(nominal_mb, round(nominal_mb * VRAM_FLOOR_RATIO), round(nominal_mb * VRAM_CEIL_RATIO))
+    return Window(
+        nominal_mb, round(nominal_mb * VRAM_FLOOR_RATIO), round(nominal_mb * VRAM_CEIL_RATIO)
+    )
 
 
 def windows_for(name: str) -> tuple[Window, ...] | None:

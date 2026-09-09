@@ -9,8 +9,22 @@ from pathlib import Path
 from typing import Any
 
 HOST_ROOT = Path("/proc/1/root")
-DMI_FIELDS = ("sys_vendor", "product_name", "product_version", "board_vendor", "board_name", "bios_version")
-NESTED_MARKERS = ("/docker/", "/lxc/", "/containerd/", "/kubepods", "/podman/", "/machine.slice/libpod")
+DMI_FIELDS = (
+    "sys_vendor",
+    "product_name",
+    "product_version",
+    "board_vendor",
+    "board_name",
+    "bios_version",
+)
+NESTED_MARKERS = (
+    "/docker/",
+    "/lxc/",
+    "/containerd/",
+    "/kubepods",
+    "/podman/",
+    "/machine.slice/libpod",
+)
 
 
 def read_text(path: Path, limit: int = 4096) -> str:

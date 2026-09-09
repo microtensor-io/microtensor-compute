@@ -26,6 +26,8 @@ class CommandResult:
 
 
 class Runner(Protocol):
-    async def run(self, command: str, timeout: float = 60.0, stdin: str | None = None) -> CommandResult: ...
+    async def run(
+        self, command: str, timeout: float = 60.0, stdin: str | None = None
+    ) -> CommandResult: ...
 
     async def upload(self, content: bytes, remote_path: str, mode: int = 0o600) -> None: ...

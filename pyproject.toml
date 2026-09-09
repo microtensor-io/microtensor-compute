@@ -19,6 +19,8 @@ agent = [
     "fastapi>=0.110",
     "uvicorn>=0.29",
     "pynvml>=11.5",
+    "psutil>=5.9",
+    "substrate-interface>=1.7",
 ]
 validator = [
     "asyncssh>=2.14",

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import errno
 import os
 import re
@@ -82,10 +83,8 @@ def watch(
 ) -> None:
     fd = os.open(str(device), os.O_RDONLY | os.O_NONBLOCK)
     try:
-        try:
+        with contextlib.suppress(OSError):
             os.lseek(fd, 0, os.SEEK_END)
-        except OSError:
-            pass
         while stop is None or not stop.is_set():
             try:
                 chunk = os.read(fd, 8192)

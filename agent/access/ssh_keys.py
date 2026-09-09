@@ -8,7 +8,9 @@ from pathlib import Path
 AUTHORIZED_KEYS = Path("/root/.ssh/authorized_keys")
 MARKER = "mt-session:"
 KEY_TYPES = ("ssh-ed25519", "ecdsa-sha2-nistp256", "ecdsa-sha2-nistp384", "ssh-rsa")
-PUBLIC_KEY = re.compile(r"^(ssh-ed25519|ecdsa-sha2-nistp256|ecdsa-sha2-nistp384|ssh-rsa) [A-Za-z0-9+/]+=*$")
+PUBLIC_KEY = re.compile(
+    r"^(ssh-ed25519|ecdsa-sha2-nistp256|ecdsa-sha2-nistp384|ssh-rsa) [A-Za-z0-9+/]+=*$"
+)
 
 _lock = threading.Lock()
 
@@ -43,7 +45,9 @@ def grant(public_key: str, session_id: str, path: Path = AUTHORIZED_KEYS) -> str
         raise ValueError("public key is not an accepted OpenSSH key")
     line = f"{key} {MARKER}{session_id}"
     with _lock:
-        lines = [existing for existing in _read(path) if not existing.endswith(f"{MARKER}{session_id}")]
+        lines = [
+            existing for existing in _read(path) if not existing.endswith(f"{MARKER}{session_id}")
+        ]
         lines.append(line)
         _write(path, lines)
     return line

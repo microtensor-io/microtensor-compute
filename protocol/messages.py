@@ -278,7 +278,9 @@ class PrefetchRequest:
 
     @classmethod
     def from_payload(cls, payload: dict[str, Any]) -> PrefetchRequest:
-        return cls(image=str(payload.get("image", "") or ""), digest=str(payload.get("digest", "") or ""))
+        return cls(
+            image=str(payload.get("image", "") or ""), digest=str(payload.get("digest", "") or "")
+        )
 
     @property
     def reference(self) -> str:
@@ -294,7 +296,9 @@ class DrainRequest:
 
     @classmethod
     def from_payload(cls, payload: dict[str, Any]) -> DrainRequest:
-        return cls(drain=bool(payload.get("drain", True)), reason=str(payload.get("reason", "") or ""))
+        return cls(
+            drain=bool(payload.get("drain", True)), reason=str(payload.get("reason", "") or "")
+        )
 
 
 @dataclass(frozen=True)
@@ -304,7 +308,10 @@ class ClaimPrompt:
 
     @classmethod
     def from_payload(cls, payload: dict[str, Any]) -> ClaimPrompt:
-        return cls(hotkey=str(payload.get("hotkey", "") or ""), expires_at=str(payload.get("expires_at", "") or ""))
+        return cls(
+            hotkey=str(payload.get("hotkey", "") or ""),
+            expires_at=str(payload.get("expires_at", "") or ""),
+        )
 
 
 @dataclass(frozen=True)

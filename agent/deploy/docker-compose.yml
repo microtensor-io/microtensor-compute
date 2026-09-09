@@ -1,0 +1,67 @@
+services:
+  agent:
+    image: ghcr.io/microtensor-io/rig-agent@${AGENT_IMAGE_SHA256}
+    restart: always
+    ports:
+      - "${EXTERNAL_PORT}:${INTERNAL_PORT}"
+      - "${SSH_PORT}:22"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /etc/docker/daemon.json:/etc/docker/daemon.json
+      - /etc/nvidia-container-runtime/config.toml:/etc/nvidia-container-runtime/config.toml
+      - job_logs:/var/lib/rig-agent-logs
+      - agent_state:/var/lib/rig-agent
+      - ${RIG_INSTALL_DIR:-/opt/rig-agent}:/opt/rig-agent
+    pid: host
+    privileged: true
+    environment:
+      - NVIDIA_DRIVER_CAPABILITIES=all
+      - RIG_SERVER_URL=${RIG_SERVER_URL:-https://api.microtensor.cloud}
+      - RIG_INTERNAL_PORT=${INTERNAL_PORT}
+      - RIG_EXTERNAL_PORT=${EXTERNAL_PORT}
+      - RIG_SSH_PORT=${SSH_PORT}
+      - RIG_PUBLIC_ADDRESS=${RIG_PUBLIC_ADDRESS:-}
+      - RIG_LABEL=${RIG_LABEL:-}
+      - RIG_PORT_RANGE=${RIG_PORT_RANGE:-40000-40100}
+      - RIG_COMPOSE_FILE=/opt/rig-agent/docker-compose.yml
+      - RIG_ENV_FILE=/opt/rig-agent/.env
+      - AGENT_IMAGE_SHA256=${AGENT_IMAGE_SHA256}
+    labels:
+      autoheal: "true"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS --max-time 5 http://127.0.0.1:${INTERNAL_PORT}/version || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+  monitor:
+    image: ghcr.io/microtensor-io/rig-agent@${AGENT_IMAGE_SHA256}
+    restart: always
+    command: ["run", "monitor"]
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /dev/kmsg:/dev/kmsg:ro
+      - job_logs:/var/lib/rig-agent-logs
+    pid: host
+    depends_on:
+      - agent
+    cap_add:
+      - SYSLOG
+
+  autoheal:
+    image: willfarrell/autoheal
+    restart: always
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+
+volumes:
+  job_logs:
+  agent_state:

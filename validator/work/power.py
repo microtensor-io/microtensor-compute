@@ -45,7 +45,9 @@ class PowerRecords:
     def save(self) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         temp = self.path.with_suffix(".tmp")
-        temp.write_text(json.dumps({"gpus": self.gpus, "jobs": self.jobs}, indent=1), encoding="utf-8")
+        temp.write_text(
+            json.dumps({"gpus": self.gpus, "jobs": self.jobs}, indent=1), encoding="utf-8"
+        )
         os.replace(temp, self.path)
 
     def remember_original(self, uuid: str, original_w: float, job_id: str) -> None:
@@ -83,7 +85,11 @@ async def read_state(runner: Runner, uuid: str) -> PowerState | None:
     result = await runner.run(QUERY.format(uuid=shlex.quote(uuid)), timeout=NVIDIA_SMI_TIMEOUT)
     if not result.ok:
         return None
-    parts = [part.strip() for part in result.stdout.strip().splitlines()[-1].split(",")] if result.stdout.strip() else []
+    parts = (
+        [part.strip() for part in result.stdout.strip().splitlines()[-1].split(",")]
+        if result.stdout.strip()
+        else []
+    )
     if len(parts) != 5:
         return None
     try:
@@ -101,7 +107,9 @@ async def read_state(runner: Runner, uuid: str) -> PowerState | None:
 async def set_limit(runner: Runner, uuid: str, watts: float) -> PowerState | None:
     quoted = shlex.quote(uuid)
     await runner.run(f"nvidia-smi -i {quoted} -pm 1", timeout=NVIDIA_SMI_TIMEOUT)
-    result = await runner.run(f"nvidia-smi -i {quoted} -pl {int(round(watts))}", timeout=NVIDIA_SMI_TIMEOUT)
+    result = await runner.run(
+        f"nvidia-smi -i {quoted} -pl {int(round(watts))}", timeout=NVIDIA_SMI_TIMEOUT
+    )
     if not result.ok:
         return None
     state = await read_state(runner, uuid)
@@ -110,7 +118,9 @@ async def set_limit(runner: Runner, uuid: str, watts: float) -> PowerState | Non
     return state
 
 
-async def apply_caps(runner: Runner, records: PowerRecords, job_id: str, caps: dict[str, float]) -> tuple[bool, str]:
+async def apply_caps(
+    runner: Runner, records: PowerRecords, job_id: str, caps: dict[str, float]
+) -> tuple[bool, str]:
     applied: list[str] = []
     for uuid, requested in caps.items():
         state = await read_state(runner, uuid)
@@ -145,6 +155,9 @@ async def raise_low_limits(runner: Runner, uuids: list[str]) -> list[str]:
         state = await read_state(runner, uuid)
         if state is None or state.default_w <= 0:
             continue
-        if state.limit_w < MIN_RATIO * state.default_w and await set_limit(runner, uuid, state.default_w) is not None:
+        if (
+            state.limit_w < MIN_RATIO * state.default_w
+            and await set_limit(runner, uuid, state.default_w) is not None
+        ):
             raised.append(uuid)
     return raised

@@ -49,7 +49,12 @@ class WorkKind(str, Enum):
     MINING = "mining"
 
 
-PRIORITY: tuple[WorkKind, ...] = (WorkKind.RENTAL, WorkKind.INFERENCE, WorkKind.SHAPING, WorkKind.MINING)
+PRIORITY: tuple[WorkKind, ...] = (
+    WorkKind.RENTAL,
+    WorkKind.INFERENCE,
+    WorkKind.SHAPING,
+    WorkKind.MINING,
+)
 
 
 @dataclass(frozen=True)
@@ -70,8 +75,16 @@ MINIMUMS: dict[WorkKind, Minimums] = {
     WorkKind.INFERENCE: Minimums(Tier.ENTRY, 8, 1.0, 180, 4),
     WorkKind.SHAPING: Minimums(Tier.STANDARD, 24, 1.5, 500, 8, bandwidth_mbps=200),
     WorkKind.RENTAL: Minimums(
-        Tier.STANDARD, 24, 2.0, 1000, 8, isolation=True, quotas=True, public_ipv4=True,
-        port_range=True, bandwidth_mbps=200,
+        Tier.STANDARD,
+        24,
+        2.0,
+        1000,
+        8,
+        isolation=True,
+        quotas=True,
+        public_ipv4=True,
+        port_range=True,
+        bandwidth_mbps=200,
     ),
     WorkKind.MINING: Minimums(Tier.ENTRY, 8, 1.0, 180, 4),
 }
@@ -112,7 +125,9 @@ class Profile:
 def host_reasons(profile: Profile) -> list[str]:
     reasons: list[str] = []
     if (profile.os_id.lower(), profile.os_version) not in SUPPORTED_OS:
-        reasons.append(f"operating system {profile.os_id} {profile.os_version} is not Ubuntu 22.04 or 24.04")
+        reasons.append(
+            f"operating system {profile.os_id} {profile.os_version} is not Ubuntu 22.04 or 24.04"
+        )
     if profile.kernel < MIN_KERNEL:
         reasons.append(f"kernel {profile.kernel[0]}.{profile.kernel[1]} is below 5.19")
     if profile.arch != SUPPORTED_ARCH:

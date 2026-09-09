@@ -109,7 +109,11 @@ class Attestation:
     @classmethod
     def from_payload(cls, payload: dict[str, Any]) -> Attestation:
         raw_gpus = payload.get("gpus")
-        gpus = [GpuEvidence.from_payload(g) for g in raw_gpus if isinstance(g, dict)] if isinstance(raw_gpus, list) else []
+        gpus = (
+            [GpuEvidence.from_payload(g) for g in raw_gpus if isinstance(g, dict)]
+            if isinstance(raw_gpus, list)
+            else []
+        )
         evidence = payload.get("gpu_evidence")
         try:
             generated_at = float(payload.get("generated_at", 0.0) or 0.0)
