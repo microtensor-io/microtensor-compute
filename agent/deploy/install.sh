@@ -4,224 +4,144 @@ set -euo pipefail
 TARGET="${RIG_AGENT_DIR:-/opt/rig-agent}"
 SERVER_URL="${RIG_SERVER_URL:-https://api.microtensor.cloud}"
 RAW="${RIG_AGENT_RAW:-https://raw.githubusercontent.com/microtensor-io/microtensor-compute/main/agent/deploy}"
-SYSBOX_VERSION="0.6.6"
-SYSBOX_URL="https://downloads.nestybox.com/sysbox/releases/v${SYSBOX_VERSION}/sysbox-ce_${SYSBOX_VERSION}-0.linux_amd64.deb"
-SYSBOX_SHA256="87cfa5cad97dc5dc1a243d6d88be1393be75b93a517dc1580ecd8a2801c2777a"
+SYSBOX_MIN_VERSION="0.6.6"
 PROBE_IMAGE="ubuntu:22.04"
 QUOTA_IMAGE="alpine"
 WORK="$(mktemp -d)"
-APT_LOG="${WORK}/apt.log"
+LOG="${WORK}/install.log"
+MISSING=0
 
 say() { printf '==> %s\n' "$*"; }
-warn() { printf 'WARNING: %s\n' "$*" >&2; }
+ok() { printf '  [ok]   %s\n' "$*"; }
+warn() { printf '  [warn] %s\n' "$*" >&2; }
+missing() { printf '  [MISSING] %s\n' "$*" >&2; MISSING=1; }
 fail() { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
 cleanup() { rm -rf "$WORK"; }
 trap cleanup EXIT
 
-apt_run() {
-  if ! DEBIAN_FRONTEND=noninteractive apt-get "$@" >>"$APT_LOG" 2>&1; then
-    tail -n 40 "$APT_LOG" >&2
-    fail "apt-get $* failed (full log in ${APT_LOG})"
-  fi
-}
-
 version_ge() { [ "$(printf '%s\n%s\n' "$2" "$1" | sort -V | head -n1)" = "$2" ]; }
 
-kernel_remediation() {
+requirements_text() {
   cat >&2 <<'TEXT'
-Kernel 5.19 or newer is required: overlayfs gained ID-mapped mounts in 5.19, and without them
-sysbox falls back to shiftfs and the NVIDIA hook fails, so GPUs do not work in sysbox containers.
-  Ubuntu 22.04:  apt-get install -y linux-generic-hwe-22.04 && reboot
-  Ubuntu 20.04:  tops out at 5.15, upgrade the distribution (do-release-upgrade)
-Before changing the kernel stop every rental and check `dkms status`: a driver installed from a
-.run file will not load after the reboot.
+
+This host does not meet the rig requirements. The agent installer sets nothing up for you;
+bring the machine to the requirements and run it again.
+
+  Operating system   Ubuntu 22.04 or 24.04, x86_64
+  Kernel             5.19 or newer (ID-mapped mounts; sysbox falls back to shiftfs below that
+                     and the NVIDIA hook fails)
+  NVIDIA driver      installed and loaded (nvidia-smi works)
+  Docker             docker-ce with the compose plugin, daemon answering
+  NVIDIA toolkit     nvidia-container-toolkit, the "nvidia" runtime registered with docker
+  Sysbox             sysbox-ce 0.6.6 or newer, the "sysbox-runc" runtime registered with docker,
+                     and `journalctl -u sysbox-mgr -b` reporting ID-mapped mounts supported: yes
+  Storage quotas     docker able to enforce --storage-opt size (overlay2 on xfs with pquota);
+                     without it the rig is not eligible for rental
+  Network            public IPv4 without carrier grade NAT, SSH reachable from validators
+  Tools              curl and jq on the PATH
+
+Requirements and remediation: https://www.microtensor.cloud/docs/compute/guides/rig-owner
 TEXT
 }
 
-idmapped_remediation() {
-  cat >&2 <<'TEXT'
-sysbox-mgr reports "Overlayfs on ID-mapped mounts supported by kernel: no" for this boot.
-  On kernel 5.19 or newer this means the docker data-root (/var/lib/docker) sits on a filesystem
-  without ID-mapped mount support (ZFS, some btrfs setups) or sysbox-mgr is misconfigured.
-  Move the docker data-root to ext4 or xfs, then: systemctl restart sysbox docker
-  On an older kernel upgrade the kernel first (see the kernel note above).
-Check what sysbox decided with: journalctl -u sysbox-mgr -b --no-pager | grep -i "ID-mapped"
-TEXT
-}
-
-sysbox_diagnostic() {
-  cat >&2 <<'TEXT'
-The sysbox GPU probe failed. Collect these before asking for help:
-  docker version --format '{{.Server.Version}}'
-  docker info --format '{{json .Runtimes}}'
-  journalctl -u sysbox-mgr -b --no-pager | tail -n 40
-  journalctl -u sysbox-fs -b --no-pager | tail -n 20
-  cat /etc/docker/daemon.json
-  nvidia-ctk --version && cat /etc/nvidia-container-runtime/config.toml
-TEXT
-}
+say "checking the host against the rig requirements"
 
 [ "$(id -u)" -eq 0 ] || fail "run as root: curl -fsSL ${RAW}/install.sh | sudo bash"
-[ "$(uname -m)" = "x86_64" ] || fail "x86_64 is required (sysbox does not support $(uname -m))"
-[ -f /etc/os-release ] || fail "unsupported operating system (no /etc/os-release)"
-. /etc/os-release
-case "${ID:-}" in
-  ubuntu)
-    case "${VERSION_ID:-}" in
-      22.04|24.04) ;;
-      *)
-        [ "${RIG_FORCE:-0}" = "1" ] || fail "Ubuntu 22.04 or 24.04 is required, found Ubuntu ${VERSION_ID:-unknown} (set RIG_FORCE=1 to try anyway)"
-        warn "untested Ubuntu release ${VERSION_ID:-unknown}, continuing because RIG_FORCE=1"
-        ;;
-    esac
-    ;;
-  debian)
-    [ "${RIG_FORCE:-0}" = "1" ] || fail "Ubuntu 22.04 or 24.04 is required; Debian ${VERSION_ID:-} is untested (set RIG_FORCE=1 to try anyway)"
-    warn "Debian ${VERSION_ID:-} is untested, continuing because RIG_FORCE=1"
-    ;;
-  *) fail "Ubuntu or a Debian derivative is required, found ${ID:-unknown}" ;;
-esac
+
+if [ "$(uname -m)" = "x86_64" ]; then ok "architecture x86_64"; else missing "architecture $(uname -m); x86_64 is required"; fi
+
+if [ -f /etc/os-release ]; then
+  # shellcheck disable=SC1091
+  . /etc/os-release
+  case "${ID:-}" in
+    ubuntu)
+      case "${VERSION_ID:-}" in
+        22.04|24.04) ok "Ubuntu ${VERSION_ID}" ;;
+        *) if [ "${RIG_FORCE:-0}" = "1" ]; then warn "Ubuntu ${VERSION_ID:-unknown} is untested (RIG_FORCE=1)"; else missing "Ubuntu ${VERSION_ID:-unknown}; 22.04 or 24.04 is required (RIG_FORCE=1 to try anyway)"; fi ;;
+      esac ;;
+    *) if [ "${RIG_FORCE:-0}" = "1" ]; then warn "${ID:-unknown} is untested (RIG_FORCE=1)"; else missing "operating system ${ID:-unknown}; Ubuntu 22.04 or 24.04 is required (RIG_FORCE=1 to try anyway)"; fi ;;
+  esac
+else
+  missing "no /etc/os-release; Ubuntu 22.04 or 24.04 is required"
+fi
 
 KERNEL="$(uname -r)"
 KMAJOR="${KERNEL%%.*}"
 KMINOR="$(echo "$KERNEL" | cut -d. -f2 | tr -dc '0-9')"
-KERNEL_OK=1
-if [ "$KMAJOR" -lt 5 ] || { [ "$KMAJOR" -eq 5 ] && [ "${KMINOR:-0}" -lt 19 ]; }; then
-  KERNEL_OK=0
-fi
-
-command -v nvidia-smi >/dev/null 2>&1 || fail "the NVIDIA driver is not installed (nvidia-smi missing); install it first and reboot"
-[ -d /proc/driver/nvidia ] || fail "the NVIDIA kernel module is not loaded (/proc/driver/nvidia missing)"
-
-if [ "$KERNEL_OK" -eq 0 ]; then
-  if command -v docker >/dev/null 2>&1 && docker info --format '{{json .Runtimes}}' 2>/dev/null | grep -q sysbox-runc \
-     && docker run --rm --runtime=sysbox-runc --gpus all "$PROBE_IMAGE" nvidia-smi -L >/dev/null 2>&1; then
-    warn "kernel ${KERNEL} is below 5.19 but sysbox with GPUs already works on this host; continuing"
-  else
-    kernel_remediation
-    fail "kernel 5.19 or newer is required, found ${KERNEL}"
-  fi
-fi
-
-if command -v docker >/dev/null 2>&1 && docker ps >/dev/null 2>&1; then
-  RENTALS="$(docker ps -q --filter label=mt.job | wc -l | tr -d ' ')"
-  [ "$RENTALS" -eq 0 ] || fail "${RENTALS} rental container(s) are running; wait for them to finish or stop them before installing"
-  if [ -f "${TARGET}/docker-compose.yml" ]; then
-    say "stopping the existing agent stack"
-    (cd "$TARGET" && docker compose down --remove-orphans >/dev/null 2>&1) || true
-  fi
-fi
-
-say "installing prerequisites"
-apt_run update
-apt_run install -y --no-install-recommends ca-certificates curl gnupg jq lsb-release
-
-if ! command -v docker >/dev/null 2>&1 || ! docker compose version >/dev/null 2>&1; then
-  say "installing docker-ce from Docker's repository"
-  install -m 0755 -d /etc/apt/keyrings
-  DOCKER_KEY="${WORK}/docker.asc"
-  curl -fsSL "https://download.docker.com/linux/${ID}/gpg" -o "$DOCKER_KEY"
-  install -m 0644 "$DOCKER_KEY" /etc/apt/keyrings/docker.asc
-  echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/${ID} ${VERSION_CODENAME} stable" > /etc/apt/sources.list.d/docker.list
-  apt_run update
-  apt_run install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
-  systemctl enable --now docker >/dev/null 2>&1 || true
-fi
-
-if ! command -v nvidia-ctk >/dev/null 2>&1; then
-  say "installing nvidia-container-toolkit from NVIDIA's repository"
-  NVIDIA_KEY="${WORK}/nvidia.gpg"
-  curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey -o "$NVIDIA_KEY"
-  gpg --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg <"$NVIDIA_KEY"
-  curl -fsSL https://nvidia.github.io/libnvidia-container/stable/deb/nvidia-container-toolkit.list \
-    | sed 's#deb https://#deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg] https://#g' \
-    > /etc/apt/sources.list.d/nvidia-container-toolkit.list
-  apt_run update
-  apt_run install -y nvidia-container-toolkit
-fi
-
-INSTALLED_SYSBOX="$(sysbox-runc --version 2>/dev/null | awk '/version:/ {print $3}' || true)"
-if [ "$INSTALLED_SYSBOX" != "$SYSBOX_VERSION" ]; then
-  say "installing sysbox-ce ${SYSBOX_VERSION}"
-  RUNNING="$(docker ps -q 2>/dev/null | wc -l | tr -d ' ')"
-  if [ "${RUNNING:-0}" -ne 0 ]; then
-    docker ps --format '  {{.Names}}  {{.Image}}' >&2
-    fail "sysbox installs only with zero running containers; stop the containers listed above and run the installer again"
-  fi
-  STOPPED="$(docker ps -aq 2>/dev/null | wc -l | tr -d ' ')"
-  if [ "${STOPPED:-0}" -ne 0 ]; then
-    say "removing ${STOPPED} stopped container(s) so sysbox can install"
-    docker rm -f "$(docker ps -aq)" >/dev/null 2>&1 || true
-  fi
-  SYSBOX_DEB="${WORK}/sysbox-ce.deb"
-  curl -fsSL "$SYSBOX_URL" -o "$SYSBOX_DEB"
-  echo "${SYSBOX_SHA256}  ${SYSBOX_DEB}" | sha256sum -c - >/dev/null || fail "sysbox-ce download does not match the pinned sha256"
-  apt_run install -y "$SYSBOX_DEB"
-fi
-
-DAEMON_VERSION="$(docker version --format '{{.Server.Version}}' 2>/dev/null || true)"
-[ -n "$DAEMON_VERSION" ] || fail "the docker daemon is not answering; check systemctl status docker"
-say "docker daemon ${DAEMON_VERSION}"
-
-say "merging /etc/docker/daemon.json"
-DAEMON_JSON=/etc/docker/daemon.json
-if [ -f "$DAEMON_JSON" ]; then
-  cp -a "$DAEMON_JSON" "${DAEMON_JSON}.bak.$(date +%s)"
-  jq -e . "$DAEMON_JSON" >/dev/null 2>&1 || fail "${DAEMON_JSON} is not valid JSON; fix it (a backup was taken) and run the installer again"
+if [ "$KMAJOR" -gt 5 ] || { [ "$KMAJOR" -eq 5 ] && [ "${KMINOR:-0}" -ge 19 ]; }; then
+  ok "kernel ${KERNEL}"
 else
-  install -d -m 0755 /etc/docker
-  echo '{}' > "$DAEMON_JSON"
-fi
-TIME_NS='.'
-if version_ge "$DAEMON_VERSION" "29.5"; then
-  TIME_NS='.features["time-namespaces"] = false'
-fi
-MERGED="$(jq \
-  '.runtimes["sysbox-runc"] = {"path": "/usr/bin/sysbox-runc"}
-   | .runtimes["nvidia"] = {"path": "nvidia-container-runtime", "runtimeArgs": []}
-   | .features = ((.features // {}) + {"cdi": false})' "$DAEMON_JSON" | jq "$TIME_NS")"
-[ -n "$MERGED" ] || fail "jq produced an empty daemon.json; nothing was changed"
-printf '%s\n' "$MERGED" > "${DAEMON_JSON}.new"
-jq -e . "${DAEMON_JSON}.new" >/dev/null || fail "merged daemon.json is not valid JSON; nothing was changed"
-mv "${DAEMON_JSON}.new" "$DAEMON_JSON"
-if version_ge "$DAEMON_VERSION" "29.2"; then
-  systemctl disable --now nvidia-cdi-refresh.path nvidia-cdi-refresh.service >/dev/null 2>&1 || true
-  rm -f /etc/cdi/nvidia.yaml /var/run/cdi/nvidia.yaml
+  missing "kernel ${KERNEL}; 5.19 or newer is required (Ubuntu 22.04: apt-get install -y linux-generic-hwe-22.04 && reboot; check dkms status first)"
 fi
 
-say "restarting docker"
-systemctl restart docker
-READY=0
-for _ in $(seq 1 30); do
-  if docker ps >/dev/null 2>&1; then READY=1; break; fi
-  sleep 1
+for tool in curl jq; do
+  if command -v "$tool" >/dev/null 2>&1; then ok "$tool present"; else missing "$tool is not installed (apt-get install -y $tool)"; fi
 done
-[ "$READY" -eq 1 ] || fail "docker did not come back after the restart; check journalctl -u docker"
-systemctl restart sysbox >/dev/null 2>&1 || true
-sleep 2
 
-IDMAP_LINE="$(journalctl -u sysbox-mgr -b --no-pager 2>/dev/null | grep -Eio 'ID-mapped mounts supported by kernel: (yes|no)' | tail -n 1 || true)"
-case "$IDMAP_LINE" in
-  *yes) say "sysbox: ${IDMAP_LINE}" ;;
-  *no)
-    idmapped_remediation
-    [ "$KERNEL_OK" -eq 1 ] || kernel_remediation
-    fail "sysbox reports no ID-mapped mount support on this boot"
-    ;;
-  *) warn "could not find the sysbox-mgr ID-mapped mount line in the journal for this boot; the validator will check it in its own session" ;;
-esac
+if command -v nvidia-smi >/dev/null 2>&1 && [ -d /proc/driver/nvidia ]; then
+  ok "NVIDIA driver $(nvidia-smi --query-gpu=driver_version --format=csv,noheader 2>/dev/null | head -n 1)"
+else
+  missing "NVIDIA driver not installed or not loaded (nvidia-smi and /proc/driver/nvidia)"
+fi
+
+DOCKER_OK=0
+if command -v docker >/dev/null 2>&1 && docker ps >/dev/null 2>&1; then
+  DOCKER_OK=1
+  ok "docker daemon $(docker version --format '{{.Server.Version}}' 2>/dev/null)"
+else
+  missing "docker is not installed or the daemon is not answering (docker-ce from https://docs.docker.com/engine/install/ubuntu/)"
+fi
+
+if [ "$DOCKER_OK" -eq 1 ]; then
+  if docker compose version >/dev/null 2>&1; then ok "docker compose plugin"; else missing "docker compose plugin (docker-compose-plugin)"; fi
+  RUNTIMES="$(docker info --format '{{json .Runtimes}}' 2>/dev/null || echo '{}')"
+  if printf '%s' "$RUNTIMES" | grep -q '"nvidia"'; then
+    ok "nvidia runtime registered"
+  else
+    missing "nvidia runtime not registered with docker (install nvidia-container-toolkit, then nvidia-ctk runtime configure --runtime=docker && systemctl restart docker)"
+  fi
+  if printf '%s' "$RUNTIMES" | grep -q 'sysbox-runc'; then
+    SYSBOX_VERSION="$(sysbox-runc --version 2>/dev/null | awk '/version:/ {print $3}' || true)"
+    if [ -n "$SYSBOX_VERSION" ] && version_ge "$SYSBOX_VERSION" "$SYSBOX_MIN_VERSION"; then
+      ok "sysbox-runc ${SYSBOX_VERSION}"
+    else
+      missing "sysbox-runc ${SYSBOX_VERSION:-unknown}; ${SYSBOX_MIN_VERSION} or newer is required (https://github.com/nestybox/sysbox/releases)"
+    fi
+    IDMAP_LINE="$(journalctl -u sysbox-mgr -b --no-pager 2>/dev/null | grep -Eio 'ID-mapped mounts supported by kernel: (yes|no)' | tail -n 1 || true)"
+    case "$IDMAP_LINE" in
+      *yes) ok "sysbox ${IDMAP_LINE}" ;;
+      *no) missing "sysbox reports no ID-mapped mount support this boot: the docker data-root must be on ext4 or xfs and the kernel 5.19 or newer" ;;
+      *) warn "could not read the sysbox-mgr ID-mapped mount line from the journal; the validator will check it in its own session" ;;
+    esac
+  else
+    missing "sysbox-runc runtime not registered with docker (install sysbox-ce ${SYSBOX_MIN_VERSION} and register it in /etc/docker/daemon.json)"
+  fi
+  RENTALS="$(docker ps -q --filter label=mt.job 2>/dev/null | wc -l | tr -d ' ')"
+  [ "${RENTALS:-0}" -eq 0 ] || fail "${RENTALS} pool container(s) are running; wait for them to finish before reinstalling the agent"
+fi
+
+if [ "$MISSING" -ne 0 ]; then
+  requirements_text
+  fail "requirements not met; nothing was changed"
+fi
 
 say "verifying sysbox with GPUs"
 if ! docker run --rm --runtime=sysbox-runc --gpus all "$PROBE_IMAGE" nvidia-smi -L >"${WORK}/probe.log" 2>&1; then
   tail -n 20 "${WORK}/probe.log" >&2
-  sysbox_diagnostic
-  fail "docker run --runtime=sysbox-runc --gpus all failed"
+  cat >&2 <<'TEXT'
+docker run --runtime=sysbox-runc --gpus all failed. Collect these before asking for help:
+  docker version --format '{{.Server.Version}}'
+  docker info --format '{{json .Runtimes}}'
+  journalctl -u sysbox-mgr -b --no-pager | tail -n 40
+  cat /etc/docker/daemon.json
+  nvidia-ctk --version && cat /etc/nvidia-container-runtime/config.toml
+TEXT
+  fail "GPUs do not work inside sysbox containers on this host"
 fi
-say "sysbox GPU probe: $(head -n 1 "${WORK}/probe.log")"
+ok "sysbox GPU probe: $(head -n 1 "${WORK}/probe.log")"
 
-say "probing per-container storage quotas"
 if docker run --rm --storage-opt size=1g "$QUOTA_IMAGE" true >/dev/null 2>&1; then
-  say "storage quota supported"
+  ok "per-container storage quotas enforceable"
 else
   warn "docker cannot enforce --storage-opt size (overlay2 needs xfs with pquota); the rig will not be eligible for rental until this is fixed"
 fi
@@ -233,6 +153,12 @@ if [ -z "$DIGEST" ]; then
 fi
 [ -n "$DIGEST" ] || fail "no authorised agent release is published yet; set RIG_AGENT_IMAGE_SHA256=sha256:... and run again"
 echo "$DIGEST" | grep -Eq '^sha256:[0-9a-f]{64}$' || fail "authorised digest is malformed: ${DIGEST}"
+ok "agent image ${DIGEST}"
+
+if [ -f "${TARGET}/docker-compose.yml" ]; then
+  say "stopping the existing agent stack"
+  (cd "$TARGET" && docker compose down --remove-orphans >/dev/null 2>&1) || true
+fi
 
 mkdir -p "$TARGET"
 curl -fsSL "${RAW}/docker-compose.yml" -o "${TARGET}/docker-compose.yml.new"
@@ -262,7 +188,7 @@ chmod 0600 "$ENV_FILE"
 
 say "starting the agent in ${TARGET}"
 cd "$TARGET"
-docker compose --env-file .env pull >>"$APT_LOG" 2>&1 || { tail -n 20 "$APT_LOG" >&2; fail "could not pull the agent image ${DIGEST}"; }
+docker compose --env-file .env pull >>"$LOG" 2>&1 || { tail -n 20 "$LOG" >&2; fail "could not pull the agent image ${DIGEST}"; }
 docker compose --env-file .env up -d
 
 cat <<TEXT

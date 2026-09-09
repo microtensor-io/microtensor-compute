@@ -31,7 +31,7 @@ Nobody builds the challenge by hand. A validator generates a fresh seed and ciph
 curl -fsSL https://raw.githubusercontent.com/microtensor-io/microtensor-compute/main/agent/deploy/install.sh | sudo bash
 ```
 
-The installer checks the host (Ubuntu 22.04 or 24.04, kernel 5.19 or newer, x86_64, a public IPv4), installs docker, the NVIDIA container toolkit and sysbox, pins the agent image to the digest the validators signed, and starts the three containers. The agent prints a registration code; enter it on the portal under Compute Pool, then approve the claiming hotkey at the terminal:
+The installer sets nothing up for the miner. It checks the host against the requirements (Ubuntu 22.04 or 24.04, kernel 5.19 or newer, x86_64, the NVIDIA driver, docker with the compose plugin, the NVIDIA runtime, sysbox 0.6.6 with ID mapped mounts, storage quotas) and refuses with the fix for each missing item. When the host passes it pins the agent image to the digest the validators signed and starts the three containers. The agent prints a registration code; enter it on the portal under Compute Pool, then approve the claiming hotkey at the terminal:
 
 ```bash
 docker compose -f /opt/rig-agent/docker-compose.yml logs agent
