@@ -1,0 +1,55 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "microtensor-compute"
+version = "0.2.0"
+description = "Microtensor compute pool: the rig agent and the compute validator"
+requires-python = ">=3.10"
+license = { text = "Proprietary" }
+dependencies = [
+    "cryptography>=42",
+    "httpx>=0.27",
+    "websockets>=12",
+]
+
+[project.optional-dependencies]
+agent = [
+    "fastapi>=0.110",
+    "uvicorn>=0.29",
+    "pynvml>=11.5",
+]
+validator = [
+    "asyncssh>=2.14",
+    "numpy>=1.26",
+    "substrate-interface>=1.7",
+]
+dev = [
+    "ruff>=0.6",
+    "mypy>=1.10",
+]
+
+[project.scripts]
+rig-agent = "agent.main:main"
+compute-validator = "validator.main:main"
+
+[tool.setuptools.packages.find]
+include = ["protocol*", "agent*", "validator*"]
+
+[tool.setuptools.package-data]
+"agent.deploy" = ["*"]
+"validator.verify.payloads" = ["*.py"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM", "W"]
+ignore = ["B008", "SIM108", "E501", "SIM117"]
+
+[tool.mypy]
+python_version = "3.10"
+ignore_missing_imports = true
+warn_unused_ignores = false
