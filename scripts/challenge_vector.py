@@ -45,7 +45,9 @@ def digest(seed: int, cipher: int, n: int, rounds: int) -> int:
     try:
         import numpy as np
 
-        matrix = np.fromiter((element(state, k) for k in range(n * n)), dtype=np.uint32, count=n * n)
+        matrix = np.fromiter(
+            (element(state, k) for k in range(n * n)), dtype=np.uint32, count=n * n
+        )
         matrix = matrix.reshape(n, n)
         for _ in range(rounds):
             matrix = (matrix.astype(np.uint64) @ matrix.astype(np.uint64)).astype(np.uint32)
