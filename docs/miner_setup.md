@@ -47,7 +47,7 @@ The installer sets nothing up for you. It checks the machine against every requi
 | `monitor` | The same image with a different command, reading `/dev/kmsg` for kernel level GPU faults so a wedged agent cannot take monitoring down with it |
 | `autoheal` | Restarts a container marked unhealthy |
 
-The agent enrols with the pool and prints the registration code:
+The agent enrols with the pool and the installer prints the registration code:
 
 ```
 ==============================================================
@@ -56,7 +56,7 @@ The agent enrols with the pool and prints the registration code:
 ==============================================================
 ```
 
-Read it again at any time with `sudo docker compose logs -f agent` in `/opt/rig-agent` (the install directory belongs to root).
+Read it again at any time with `sudo docker compose exec agent rig-agent status` in `/opt/rig-agent` (the install directory belongs to root).
 
 ### 3. Claim the rig
 
