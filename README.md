@@ -193,11 +193,6 @@ with it inside: `ghcr.io/microtensor-io/rig-agent` and
 authorise; rigs update to nothing else. CI lints, compiles and imports every
 module, and proves the C and Python challenge references agree.
 
-The pool server lives in
-[microtensor-server](https://github.com/microtensor-io/microtensor-server); the
-arena layer in
-[microtensor-subnet](https://github.com/microtensor-io/microtensor-subnet).
-
 ---
 
 ## Status
