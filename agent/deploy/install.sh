@@ -202,10 +202,10 @@ docker compose --env-file .env up -d
 cat <<TEXT
 
 The agent is running. Read the registration code with:
-  cd ${TARGET} && docker compose logs agent
+  cd ${TARGET} && sudo docker compose logs agent
 Enter the code on the portal under Compute Pool > Add rig. When the portal asks which hotkey
 claims the rig, approve it from this machine:
-  cd ${TARGET} && docker compose exec agent rig-agent approve <hotkey>
+  cd ${TARGET} && sudo docker compose exec agent rig-agent approve <hotkey>
 Status at any time:
-  cd ${TARGET} && docker compose exec agent rig-agent status
+  cd ${TARGET} && sudo docker compose exec agent rig-agent status
 TEXT
