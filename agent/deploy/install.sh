@@ -139,7 +139,7 @@ docker run --runtime=sysbox-runc --gpus all failed. Collect these before asking 
 TEXT
   fail "GPUs do not work inside sysbox containers on this host"
 fi
-ok "sysbox GPU probe: $(head -n 1 "${WORK}/probe.log")"
+ok "sysbox GPU probe: $(grep -m1 '^GPU ' "${WORK}/probe.log" || tail -n 1 "${WORK}/probe.log")"
 
 if docker run --rm --storage-opt size=1g "$QUOTA_IMAGE" true >/dev/null 2>&1; then
   ok "per-container storage quotas enforceable"
