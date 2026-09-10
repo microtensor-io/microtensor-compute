@@ -318,6 +318,8 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(message)s")
+    for noisy in ("httpx", "httpcore", "websockets"):
+        logging.getLogger(noisy).setLevel(logging.WARNING)
     config = load_settings()
 
     if args.command == "version":

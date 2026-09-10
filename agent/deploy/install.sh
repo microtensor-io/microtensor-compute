@@ -199,13 +199,36 @@ cd "$TARGET"
 docker compose --env-file .env pull >>"$LOG" 2>&1 || { tail -n 20 "$LOG" >&2; fail "could not pull the agent image ${DIGEST}"; }
 docker compose --env-file .env up -d
 
-cat <<TEXT
+say "waiting for the agent to enrol with the pool"
+CODE=""
+for _ in $(seq 1 45); do
+  CODE="$(docker compose --env-file .env exec -T agent rig-agent status 2>/dev/null | awk '/^claim/ {print $NF}' || true)"
+  case "$CODE" in ??????*) break ;; *) CODE="" ;; esac
+  sleep 2
+done
+RIG_ID="$(docker compose --env-file .env exec -T agent rig-agent status 2>/dev/null | awk '/^rig id/ {print $NF}' || true)"
 
-The agent is running. Read the registration code with:
-  cd ${TARGET} && sudo docker compose logs agent
-Enter the code on the portal under Compute Pool > Add rig. When the portal asks which hotkey
-claims the rig, approve it from this machine:
+if [ -n "$CODE" ]; then
+  cat <<TEXT
+
+==============================================================
+  REGISTRATION CODE   ${CODE}
+  Rig id ${RIG_ID:-unknown}
+==============================================================
+
+Enter the code on https://www.microtensor.cloud/compute-pool under Add rig. When the portal
+asks which hotkey claims the rig, approve it from this machine:
   cd ${TARGET} && sudo docker compose exec agent rig-agent approve <hotkey>
-Status at any time:
+Status at any time (shows the code again):
   cd ${TARGET} && sudo docker compose exec agent rig-agent status
 TEXT
+else
+  cat <<TEXT
+
+The agent is running but has not enrolled with the pool yet (it keeps trying). Read the code with:
+  cd ${TARGET} && sudo docker compose exec agent rig-agent status
+Then enter it on https://www.microtensor.cloud/compute-pool under Add rig and approve the claiming
+hotkey from this machine:
+  cd ${TARGET} && sudo docker compose exec agent rig-agent approve <hotkey>
+TEXT
+fi

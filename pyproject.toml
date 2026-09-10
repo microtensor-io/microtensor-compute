@@ -18,7 +18,7 @@ dependencies = [
 agent = [
     "fastapi>=0.110",
     "uvicorn>=0.29",
-    "pynvml>=11.5",
+    "nvidia-ml-py>=12.535",
     "psutil>=5.9",
     "substrate-interface>=1.7",
 ]
