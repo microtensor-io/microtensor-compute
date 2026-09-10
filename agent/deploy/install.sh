@@ -5,6 +5,7 @@ TARGET="${RIG_AGENT_DIR:-/opt/rig-agent}"
 SERVER_URL="${RIG_SERVER_URL:-https://api.microtensor.cloud}"
 RAW="${RIG_AGENT_RAW:-https://raw.githubusercontent.com/microtensor-io/microtensor-compute/main/agent/deploy}"
 SYSBOX_MIN_VERSION="0.6.6"
+IMAGE="ghcr.io/microtensor-io/rig-agent"
 PROBE_IMAGE="ubuntu:22.04"
 QUOTA_IMAGE="alpine"
 WORK="$(mktemp -d)"
@@ -146,14 +147,21 @@ else
   warn "docker cannot enforce --storage-opt size (overlay2 needs xfs with pquota); the rig will not be eligible for rental until this is fixed"
 fi
 
-say "fetching the authorised agent release"
+say "fetching the agent image"
 DIGEST="${RIG_AGENT_IMAGE_SHA256:-}"
 if [ -z "$DIGEST" ]; then
-  DIGEST="$(curl -fsS --max-time 30 "${SERVER_URL}/v1/pool/agent-release" | jq -r '.release.digest // empty' || true)"
+  DIGEST="$(curl -fsS --max-time 30 "${SERVER_URL}/v1/pool/agent-release" | jq -r '.release.digest // empty' 2>/dev/null || true)"
 fi
-[ -n "$DIGEST" ] || fail "no authorised agent release is published yet; set RIG_AGENT_IMAGE_SHA256=sha256:... and run again"
-echo "$DIGEST" | grep -Eq '^sha256:[0-9a-f]{64}$' || fail "authorised digest is malformed: ${DIGEST}"
-ok "agent image ${DIGEST}"
+if [ -n "$DIGEST" ]; then
+  echo "$DIGEST" | grep -Eq '^sha256:[0-9a-f]{64}$' || fail "authorised digest is malformed: ${DIGEST}"
+  ok "validator signed release ${DIGEST}"
+else
+  warn "no validator signed release is published yet; starting from the latest published image, the agent moves to the first signed release on its own"
+  docker pull "${IMAGE}:latest" >>"$LOG" 2>&1 || { tail -n 20 "$LOG" >&2; fail "could not pull ${IMAGE}:latest"; }
+  DIGEST="$(docker image inspect --format '{{index .RepoDigests 0}}' "${IMAGE}:latest" 2>/dev/null | sed 's/.*@//')"
+  echo "$DIGEST" | grep -Eq '^sha256:[0-9a-f]{64}$' || fail "could not read the digest of ${IMAGE}:latest"
+  ok "latest published image ${DIGEST}"
+fi
 
 if [ -f "${TARGET}/docker-compose.yml" ]; then
   say "stopping the existing agent stack"
