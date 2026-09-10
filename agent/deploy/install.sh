@@ -101,7 +101,7 @@ if [ "$DOCKER_OK" -eq 1 ]; then
     missing "nvidia runtime not registered with docker (install nvidia-container-toolkit, then nvidia-ctk runtime configure --runtime=docker && systemctl restart docker)"
   fi
   if printf '%s' "$RUNTIMES" | grep -q 'sysbox-runc'; then
-    SYSBOX_VERSION="$(sysbox-runc --version 2>/dev/null | awk '/version:/ {print $3}' || true)"
+    SYSBOX_VERSION="$(sysbox-runc --version 2>/dev/null | awk '/version:/ {print $NF; exit}' || true)"
     if [ -n "$SYSBOX_VERSION" ] && version_ge "$SYSBOX_VERSION" "$SYSBOX_MIN_VERSION"; then
       ok "sysbox-runc ${SYSBOX_VERSION}"
     else
