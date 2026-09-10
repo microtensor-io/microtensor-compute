@@ -257,10 +257,15 @@ def run_monitor(config: Settings) -> int:
                 events.write("monitor.kmsg.start")
                 kmsg.watch(on_fault, stop=stop)
             except PermissionError:
-                events.write(
-                    "monitor.error", error="cannot read /dev/kmsg; SYSLOG capability missing"
-                )
-                stop.wait(60)
+                events.write("monitor.kmsg.fallback", source="dmesg --follow")
+                try:
+                    kmsg.watch_dmesg(on_fault, stop=stop)
+                except OSError as exc:
+                    events.write(
+                        "monitor.error",
+                        error=f"cannot read /dev/kmsg or run dmesg ({exc}); SYSLOG capability missing",
+                    )
+                    stop.wait(60)
             except OSError as exc:
                 events.write("monitor.error", error=str(exc)[:200])
                 stop.wait(10)

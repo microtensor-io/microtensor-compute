@@ -4,6 +4,7 @@ import contextlib
 import errno
 import os
 import re
+import subprocess
 import threading
 import time
 from collections.abc import Callable
@@ -112,3 +113,26 @@ def scan_dmesg(text: str) -> list[KernelFault]:
         if fault is not None:
             faults.append(fault)
     return faults
+
+
+def watch_dmesg(
+    callback: Callable[[KernelFault], None],
+    stop: threading.Event | None = None,
+) -> None:
+    process = subprocess.Popen(
+        ["dmesg", "--follow", "--kernel", "--notime"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+        text=True,
+    )
+    try:
+        assert process.stdout is not None
+        for line in process.stdout:
+            if stop is not None and stop.is_set():
+                break
+            fault = parse_line(line)
+            if fault is not None:
+                callback(fault)
+    finally:
+        if process.poll() is None:
+            process.terminate()

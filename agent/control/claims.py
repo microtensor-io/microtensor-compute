@@ -51,6 +51,7 @@ class ClaimPrompter:
     def __init__(self, runtime: Any) -> None:
         self._runtime = runtime
         self.pending: dict[str, str] = {}
+        self.announced: set[str] = set()
 
     def prompt(self, hotkey: str, expires_at: str) -> None:
         self.pending[hotkey] = expires_at
@@ -68,16 +69,24 @@ class ClaimPrompter:
         try:
             await self._runtime.client.decide_claim(rig_id, hotkey, approved)
         except Exception as exc:
-            self._runtime.events.write("claim.decide.error", hotkey=hotkey, error=str(exc)[:200])
-            print(
-                f"could not send the claim decision for {hotkey}: {exc}",
-                file=sys.stderr,
-                flush=True,
-            )
+            waiting = "no claim" in str(exc)
+            if not waiting or hotkey not in self.announced:
+                self._runtime.events.write(
+                    "claim.decide.error", hotkey=hotkey, error=str(exc)[:200]
+                )
+                print(
+                    f"decision for {hotkey} kept until the portal starts the claim"
+                    if waiting
+                    else f"could not send the claim decision for {hotkey}: {exc}",
+                    file=sys.stderr,
+                    flush=True,
+                )
+                self.announced.add(hotkey)
             return False
         self._runtime.events.write("claim.decide", hotkey=hotkey, approved=approved)
         print(f"claim by {hotkey} {'approved' if approved else 'denied'}", flush=True)
         self.pending.pop(hotkey, None)
+        self.announced.discard(hotkey)
         return True
 
     async def _drain(self) -> None:
