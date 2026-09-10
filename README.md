@@ -6,9 +6,9 @@
 
 Bittensor subnet 92, compute layer
 
-[Rig owner](https://www.microtensor.cloud/docs/compute/guides/rig-owner) •
-[Validator](https://www.microtensor.cloud/docs/compute/guides/validator) •
-[Operating](https://www.microtensor.cloud/docs/compute/guides/operating) •
+[Miner](docs/miner_setup.md) •
+[Validator](docs/validator_setup.md) •
+[Incentive mechanism](docs/incentive_mechanism.md) •
 [How it works](https://www.microtensor.cloud/docs/compute/reference/how-it-works) •
 [API](https://www.microtensor.cloud/docs/compute/reference/api) •
 [Dashboard](https://www.microtensor.cloud/compute-pool)
