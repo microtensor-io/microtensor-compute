@@ -56,14 +56,14 @@ The agent enrols with the pool and prints the registration code:
 ==============================================================
 ```
 
-Read it again at any time with `docker compose logs -f agent` in `/opt/rig-agent`.
+Read it again at any time with `sudo docker compose logs -f agent` in `/opt/rig-agent` (the install directory belongs to root).
 
 ### 3. Claim the rig
 
 On the portal open Add rig, paste the code and press Add rig. The pool tells the agent which hotkey is claiming the machine, and the agent asks at the rig's terminal. Approve from the rig:
 
 ```bash
-cd /opt/rig-agent && docker compose exec agent rig-agent approve <your hotkey>
+cd /opt/rig-agent && sudo docker compose exec agent rig-agent approve <your hotkey>
 ```
 
 Deny with `--deny`. The prompt expires after ten minutes; enter the code again if it does. Only the person at the keyboard can approve, which is what makes a leaked code useless.
@@ -112,7 +112,7 @@ Rental means a stranger's code runs on your hardware, inside a sysbox container 
 - Keep it online. The websocket ping every twenty seconds is the liveness signal; a drop longer than a minute marks the rig offline and resets its uptime ramp.
 - Keep the driver above the announced minimum. A cutoff is announced with a grace period, and a rig mid rental is exempt until the tenant leaves.
 - Let the agent update itself. It applies only image digests signed by a compute validator, fetched every five minutes.
-- Read `docker compose logs agent` and the event log at `/var/lib/rig-agent-logs/events.jsonl` when something looks wrong. The log is append only and keeps its freshest half when it fills.
+- Read `sudo docker compose logs agent` and the event log at `/var/lib/rig-agent-logs/events.jsonl` when something looks wrong. The log is append only and keeps its freshest half when it fills.
 
 ### Removing a rig
 
@@ -192,7 +192,7 @@ That is the whole contract with a contributor: here is what your hardware qualif
 | Class | What the validator saw | What to do |
 |---|---|---|
 | `SSH_TRANSPORT` | The agent could not be reached, refused the session, or the SSH connection failed | Check the public address, that ports 8800 and 2200 reach the agent, and that the rig is online in the portal |
-| `AGENT_CRASH` | The agent died during the check, or an uploaded check exited without a result | Read `docker compose logs agent` and the event log; restart the agent |
+| `AGENT_CRASH` | The agent died during the check, or an uploaded check exited without a result | Read `sudo docker compose logs agent` and the event log; restart the agent |
 | `CHALLENGE_REJECT` | The challenge answer was wrong, or took longer than the cutoff | The card is not what it claims, is proxied, or is heavily contended. Free the card and let the next pass run |
 | `SPEC_MISMATCH` | The hardware is not what was declared: a missing card, a changed model, a virtualised or MIG slice, or NVML failing | Enrol the rig again with the cards it really has; do not slice cards; make sure the driver loads |
 | `UNAUTHORISED_WORK` | A GPU process that matches neither a container nor a job the pool placed | Stop whatever else runs on the cards. Anything the pool did not place is unauthorised |
