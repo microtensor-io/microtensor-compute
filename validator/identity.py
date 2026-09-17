@@ -6,7 +6,7 @@ import time
 from pathlib import Path
 from typing import Any
 
-from substrateinterface import Keypair
+from substrateinterface import Keypair, KeypairType
 
 from protocol.session import HEADER_HOTKEY, HEADER_SIGNATURE, HEADER_TIMESTAMP, signing_bytes
 from validator.config import Settings
@@ -53,7 +53,26 @@ def load_keypair(settings: Settings) -> Keypair:
             return Keypair.create_from_seed(seed_bytes(seed), ss58_format=SS58_FORMAT)
         if phrase:
             return Keypair.create_from_mnemonic(phrase.strip(), ss58_format=SS58_FORMAT)
-        raise IdentityError("the wallet hotkey file has neither secretSeed nor secretPhrase")
+        private = str(data.get("privateKey", "") or "")
+        if private:
+            raw = bytes.fromhex(private[2:] if private.startswith("0x") else private)
+            public = str(data.get("publicKey", "") or "")
+            crypto = (
+                KeypairType.SR25519
+                if int(data.get("cryptoType", 1) or 1) == 0
+                else KeypairType.ED25519
+            )
+            return Keypair(
+                public_key=bytes.fromhex(public[2:] if public.startswith("0x") else public)
+                if public
+                else None,
+                private_key=raw,
+                ss58_format=SS58_FORMAT,
+                crypto_type=crypto,
+            )
+        raise IdentityError(
+            "the wallet hotkey file has neither secretSeed, secretPhrase nor privateKey"
+        )
     raise IdentityError("set CV_HOTKEY_SEED, CV_HOTKEY_MNEMONIC or CV_WALLET_HOTKEY_FILE")
 
 
