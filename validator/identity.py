@@ -58,9 +58,9 @@ def load_keypair(settings: Settings) -> Keypair:
             raw = bytes.fromhex(private[2:] if private.startswith("0x") else private)
             public = str(data.get("publicKey", "") or "")
             crypto = (
-                KeypairType.SR25519
+                KeypairType.ED25519
                 if int(data.get("cryptoType", 1) or 1) == 0
-                else KeypairType.ED25519
+                else KeypairType.SR25519
             )
             return Keypair(
                 public_key=bytes.fromhex(public[2:] if public.startswith("0x") else public)
