@@ -197,7 +197,7 @@ module, and proves the C and Python challenge references agree.
 
 ## Status
 
-Subnet 92 on testnet. The agent, the validator, the challenge and the pool
+Subnet 92 on finney. The agent, the validator, the challenge and the pool
 server run end to end against the deployed API; the first real rigs and the
 first activated compute validator are the next step. Live rigs, validations and
 scores are on the [dashboard](https://www.microtensor.cloud/compute-pool).
